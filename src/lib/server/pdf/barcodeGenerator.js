@@ -1,5 +1,6 @@
 // src/lib/server/pdf/barcodeGenerator.js
 import bwipjs from 'bwip-js';
+import { formatGS1Date, formatGS1Weight } from '$lib/utils/gs1Utils';
 
 /**
  * Generate a GS1-128 barcode with proper Application Identifiers
@@ -145,13 +146,12 @@ export function formatWeightForGS1(weight, decimalPlaces = 0) {
 }
 
 /**
- * Generate a logistic label barcode that combines multiple GS1 elements
+ * Generate separate barcodes for different sections of a GS1 label
  * 
- * @param {Object} labelData - Data for the logistic label
- * @param {Object} options - Barcode options
- * @returns {Promise<Buffer>} - PNG image buffer of the barcode
+ * @param {Object} labelData - Data for the label
+ * @returns {Promise<Object>} - Object containing PNG buffers for each barcode section
  */
-export async function generateLogisticLabelBarcode(labelData, options = {}) {
+export async function generateGS1SectionBarcodes(labelData) {
   const { 
     gtin, 
     lot_number, 
@@ -161,22 +161,62 @@ export async function generateLogisticLabelBarcode(labelData, options = {}) {
     sscc 
   } = labelData;
   
-  // Convert to GS1 data format
-  const gs1Data = {
-    SSCC: sscc,
+  // 1. GTIN, LOT, DATE barcode
+  const contentBarcode = await generateGS1Barcode({
     GTIN: gtin,
     BATCH_LOT: lot_number,
-    PROD_DATE: production_date,
+    PROD_DATE: production_date
+  }, {
+    scale: 3,
+    height: 12,
+    textsize: 8
+  });
+  
+  // 2. QUANTITY, WEIGHT barcode
+  const quantityBarcode = await generateGS1Barcode({
     QTY: quantity.toString(),
     WEIGHT_LB: weight_pounds.toString()
-  };
+  }, {
+    scale: 3,
+    height: 12,
+    textsize: 8
+  });
   
-  return generateGS1Barcode(gs1Data, options);
+  // 3. SSCC barcode
+  const ssccBarcode = await generateGS1Barcode({
+    SSCC: sscc
+  }, {
+    scale: 3,
+    height: 15, // Make SSCC barcode slightly taller for better scanning
+    textsize: 10
+  });
+  
+  return {
+    contentBarcode,
+    quantityBarcode,
+    ssccBarcode
+  };
+}
+
+/**
+ * Generate a multi-section logistic label with barcodes
+ * 
+ * @param {Object} labelData - Complete label data
+ * @returns {Promise<Object>} - Object containing all barcodes for the label
+ */
+export async function generateLogisticLabelBarcodes(labelData) {
+  try {
+    const barcodes = await generateGS1SectionBarcodes(labelData);
+    return barcodes;
+  } catch (error) {
+    console.error('Error generating logistic label barcodes:', error);
+    throw error;
+  }
 }
 
 export default {
   generateGS1Barcode,
-  generateLogisticLabelBarcode,
+  generateLogisticLabelBarcodes,
   formatDateForGS1,
   formatWeightForGS1
 };
