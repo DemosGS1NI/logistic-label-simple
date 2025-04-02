@@ -1,305 +1,264 @@
 // src/lib/pdfGenerator.js
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { generarSSCC, formatearFechaGS1, formatearPesoGS1 } from './gs1Utils';
+import { formatGS1Date, formatGS1Weight } from './gs1Utils';
+import { generateGS1BarcodeAsSVG } from './barcodeGenerator';
 
 /**
- * Genera un PDF de etiqueta logística GS1-128
- * @param {Object} datos - Datos para la etiqueta
- * @returns {Promise<Uint8Array>} - Documento PDF como array de bytes
+ * Generate a GS1-128 logistics label PDF
+ * @param {Object} data - Label data
+ * @returns {Promise<Uint8Array>} - PDF binary data
  */
-export async function generarEtiquetaLogistica(datos) {
-  // Crear nuevo documento PDF
+export async function generateGS1LabelPDF(data) {
+  const {
+    companyName,
+    companyAddress,
+    sscc,
+    lotNumber,
+    productionDate,
+    quantity,
+    weight
+  } = data;
+  
+  // Create PDF document
   const pdfDoc = await PDFDocument.create();
   
-  // Configurar tamaño de página a 4x6 pulgadas (estándar para etiquetas logísticas)
-  // 1 pulgada = 72 puntos en PDF
-  const anchoEtiqueta = 4 * 72;
-  const altoEtiqueta = 6 * 72;
-  const pagina = pdfDoc.addPage([anchoEtiqueta, altoEtiqueta]);
+  // Set page size to 4x6 inches (standard label size)
+  const pageWidth = 4 * 72;
+  const pageHeight = 6 * 72;
+  const page = pdfDoc.addPage([pageWidth, pageHeight]);
   
-  // Obtener fuentes
+  // Get fonts
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   
-  // Configurar márgenes
-  const margen = 18; // 0.25 pulgadas de margen
+  // Set margins
+  const margin = 18;
   
-  // Extraer datos de la etiqueta
-  const { 
-    empresa,
-    direccion,
-    gtin, 
-    lote, 
-    fecha, 
-    cantidad, 
-    peso 
-  } = datos;
+  // Format dates
+  const formattedDate = new Date(productionDate).toLocaleDateString();
+  const gs1Date = formatGS1Date(productionDate);
   
-  // Generar SSCC para esta etiqueta
-  const sscc = generarSSCC();
+  // Format weight for GS1 (with 1 decimal place)
+  const gs1Weight = formatGS1Weight(weight, 1);
   
-  // Formatear fecha para mostrar
-  const fechaFormateada = new Date(fecha).toLocaleDateString();
-  const fechaGS1 = formatearFechaGS1(fecha);
+  // Document structure
+  const headerHeight = pageHeight * 0.15;
+  const midHeight = pageHeight * 0.35;
   
-  // Calcular secciones
-  const altoEncabezado = altoEtiqueta * 0.15; // 15% superior
-  const altoMedio = altoEtiqueta * 0.35;      // 35% medio
-  const altoCodigoBarras = altoEtiqueta * 0.5; // 50% inferior
-  
-  // ---- SECCIÓN SUPERIOR: INFORMACIÓN DE EMPRESA ----
-  
-  // Nombre de empresa (en negrita)
-  pagina.drawText(empresa, {
-    x: margen,
-    y: altoEtiqueta - margen - 20,
-    size: 18,
-    font: helveticaBold,
-    color: rgb(0, 0, 0)
+  // Draw company header
+  page.drawText(companyName, {
+    x: margin,
+    y: pageHeight - margin - 15,
+    size: 16,
+    font: helveticaBold
   });
   
-  // Dirección de empresa
-  pagina.drawText(direccion, {
-    x: margen,
-    y: altoEtiqueta - margen - 45,
+  page.drawText(companyAddress, {
+    x: margin,
+    y: pageHeight - margin - 35,
     size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
+    font: helvetica
   });
   
-  // Línea horizontal debajo del encabezado
-  pagina.drawLine({
-    start: { x: margen, y: altoEtiqueta - altoEncabezado },
-    end: { x: anchoEtiqueta - margen, y: altoEtiqueta - altoEncabezado },
-    thickness: 1,
-    color: rgb(0, 0, 0)
+  // Header divider line
+  page.drawLine({
+    start: { x: margin, y: pageHeight - headerHeight },
+    end: { x: pageWidth - margin, y: pageHeight - headerHeight },
+    thickness: 1
   });
   
-  // ---- SECCIÓN MEDIA: INFORMACIÓN LEGIBLE POR HUMANOS ----
+  // Human readable information
+  const textY = pageHeight - headerHeight - 25;
+  const lineHeight = 20;
   
-  const textoY = altoEtiqueta - altoEncabezado - 40;
-  const textoXIzquierda = margen;
-  const textoXDerecha = anchoEtiqueta / 2 + 10;
-  const alturaLinea = 30;
+  // SSCC
+  page.drawText('SSCC:', {
+    x: margin,
+    y: textY,
+    size: 12,
+    font: helveticaBold
+  });
   
-  // COLUMNA IZQUIERDA
+  page.drawText(sscc, {
+    x: margin + 50,
+    y: textY,
+    size: 12,
+    font: helvetica
+  });
   
-  // GTIN con etiqueta AI
-  pagina.drawText('(01) GTIN:', {
-    x: textoXIzquierda,
-    y: textoY,
+  // Other data fields
+  // Lot Number
+  page.drawText('BATCH/LOT:', {
+    x: margin,
+    y: textY - lineHeight,
     size: 10,
-    font: helveticaBold,
-    color: rgb(0, 0, 0)
+    font: helveticaBold
   });
   
-  pagina.drawText(gtin, {
-    x: textoXIzquierda + 30,
-    y: textoY,
+  page.drawText(lotNumber, {
+    x: margin + 80,
+    y: textY - lineHeight,
     size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
+    font: helvetica
   });
   
-  // Número de lote con etiqueta AI
-  pagina.drawText('(10) LOTE:', {
-    x: textoXIzquierda,
-    y: textoY - alturaLinea,
+  // Production Date
+  page.drawText('PROD DATE:', {
+    x: margin,
+    y: textY - lineHeight * 2,
     size: 10,
-    font: helveticaBold,
-    color: rgb(0, 0, 0)
+    font: helveticaBold
   });
   
-  pagina.drawText(lote, {
-    x: textoXIzquierda + 30,
-    y: textoY - alturaLinea,
+  page.drawText(`${formattedDate}`, {
+    x: margin + 80,
+    y: textY - lineHeight * 2,
     size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
+    font: helvetica
   });
   
-  // Fecha de producción con etiqueta AI
-  pagina.drawText('(11) FECHA PRD:', {
-    x: textoXIzquierda,
-    y: textoY - alturaLinea * 2,
+  // Quantity
+  page.drawText('COUNT:', {
+    x: margin + 180,
+    y: textY - lineHeight,
     size: 10,
-    font: helveticaBold,
-    color: rgb(0, 0, 0)
+    font: helveticaBold
   });
   
-  pagina.drawText(`${fechaFormateada} (${fechaGS1})`, {
-    x: textoXIzquierda + 90,
-    y: textoY - alturaLinea * 2,
+  page.drawText(quantity.toString(), {
+    x: margin + 230,
+    y: textY - lineHeight,
     size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
+    font: helvetica
   });
   
-  // COLUMNA DERECHA
-  
-  // Cantidad con etiqueta AI
-  pagina.drawText('(37) CANTIDAD:', {
-    x: textoXDerecha,
-    y: textoY,
+  // Weight
+  page.drawText('NET WEIGHT (lb):', {
+    x: margin + 180,
+    y: textY - lineHeight * 2,
     size: 10,
-    font: helveticaBold,
-    color: rgb(0, 0, 0)
+    font: helveticaBold
   });
   
-  pagina.drawText(cantidad.toString(), {
-    x: textoXDerecha + 90,
-    y: textoY,
+  page.drawText(weight.toString(), {
+    x: margin + 280,
+    y: textY - lineHeight * 2,
     size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
+    font: helvetica
   });
   
-  // Peso con etiqueta AI
-  pagina.drawText('(3201) PESO:', {
-    x: textoXDerecha,
-    y: textoY - alturaLinea,
-    size: 10,
-    font: helveticaBold,
-    color: rgb(0, 0, 0)
+  // Middle section divider
+  page.drawLine({
+    start: { x: margin, y: pageHeight - headerHeight - midHeight },
+    end: { x: pageWidth - margin, y: pageHeight - headerHeight - midHeight },
+    thickness: 1
   });
   
-  pagina.drawText(`${peso} lb`, {
-    x: textoXDerecha + 90,
-    y: textoY - alturaLinea,
-    size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
-  });
+  // Generate barcode strings
+  const ssccBarcode = `(00)${sscc}`;
+  const contentBarcode = `(10)${lotNumber}(11)${gs1Date}`;
+  const quantityBarcode = `(37)${quantity.toString().padStart(6, '0')}(3201)${gs1Weight}`;
   
-  // SSCC con etiqueta AI - Mostrando el SSCC completo
-  pagina.drawText('(00) SSCC:', {
-    x: textoXIzquierda,
-    y: textoY - alturaLinea * 4,
-    size: 10,
-    font: helveticaBold,
-    color: rgb(0, 0, 0)
-  });
+  // Barcode Y positions
+  const barcodeWidth = pageWidth - (margin * 2);
+  const barcodeY1 = pageHeight - headerHeight - midHeight - 60;
+  const barcodeY2 = barcodeY1 - 80;
+  const barcodeY3 = barcodeY2 - 80;
   
-  pagina.drawText(sscc, {
-    x: textoXIzquierda + 90,
-    y: textoY - alturaLinea * 4,
-    size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
-  });
+  // Add placeholder rectangles for barcodes
+  // In a real implementation, we would embed the SVG or PNG barcodes here
+  // For now, we'll just draw placeholders with the barcode text
   
-  // Línea horizontal debajo de la sección media
-  pagina.drawLine({
-    start: { x: margen, y: altoEtiqueta - altoEncabezado - altoMedio },
-    end: { x: anchoEtiqueta - margen, y: altoEtiqueta - altoEncabezado - altoMedio },
-    thickness: 1,
-    color: rgb(0, 0, 0)
-  });
-  
-  // ---- SECCIÓN INFERIOR: CÓDIGOS DE BARRAS ----
-  
-  // 1. Código de barras GTIN + LOTE + FECHA
-  const codigoBarras1Y = altoEtiqueta - altoEncabezado - altoMedio - 60;
-  pagina.drawRectangle({
-    x: margen,
-    y: codigoBarras1Y - 25,
-    width: anchoEtiqueta - (margen * 2),
-    height: 35,
+  // SSCC barcode (bottom barcode as per GS1 standards)
+  page.drawRectangle({
+    x: margin,
+    y: barcodeY3 - 30,
+    width: barcodeWidth,
+    height: 40,
     borderColor: rgb(0, 0, 0),
-    borderWidth: 1,
+    borderWidth: 1
   });
   
-  pagina.drawText(`(01)${gtin}(10)${lote}(11)${fechaGS1}`, {
-    x: margen + 20,
-    y: codigoBarras1Y - 12,
+  page.drawText(ssccBarcode, {
+    x: margin + 10,
+    y: barcodeY3 - 15,
     size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
+    font: helvetica
   });
   
-  // 2. Código de barras CANTIDAD + PESO
-  const codigoBarras2Y = codigoBarras1Y - 80;
-  pagina.drawRectangle({
-    x: margen,
-    y: codigoBarras2Y - 25,
-    width: anchoEtiqueta - (margen * 2),
-    height: 35,
+  // Content barcode
+  page.drawRectangle({
+    x: margin,
+    y: barcodeY1 - 30,
+    width: barcodeWidth,
+    height: 40,
     borderColor: rgb(0, 0, 0),
-    borderWidth: 1,
+    borderWidth: 1
   });
   
-  // Formatear peso con 1 decimal para GS1-3201
-  const pesoFormateado = formatearPesoGS1(peso, 1);
-  pagina.drawText(`(37)${cantidad.toString().padStart(6, '0')}(3201)${pesoFormateado}`, {
-    x: margen + 20,
-    y: codigoBarras2Y - 12,
+  page.drawText(contentBarcode, {
+    x: margin + 10,
+    y: barcodeY1 - 15,
     size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
+    font: helvetica
   });
   
-  // 3. Código de barras SSCC
-  const codigoBarras3Y = codigoBarras2Y - 80;
-  pagina.drawRectangle({
-    x: margen,
-    y: codigoBarras3Y - 25,
-    width: anchoEtiqueta - (margen * 2),
-    height: 35,
+  // Quantity/Weight barcode
+  page.drawRectangle({
+    x: margin,
+    y: barcodeY2 - 30,
+    width: barcodeWidth,
+    height: 40,
     borderColor: rgb(0, 0, 0),
-    borderWidth: 1,
+    borderWidth: 1
   });
   
-  pagina.drawText(`(00)${sscc}`, {
-    x: margen + 20,
-    y: codigoBarras3Y - 12,
+  page.drawText(quantityBarcode, {
+    x: margin + 10,
+    y: barcodeY2 - 15,
     size: 10,
-    font: helvetica,
-    color: rgb(0, 0, 0)
+    font: helvetica
   });
   
-  // Agregar ID de etiqueta y fecha de creación en la parte inferior
-  pagina.drawText(`SSCC: ${sscc} | Creado: ${new Date().toLocaleString()}`, {
-    x: margen,
-    y: margen,
-    size: 8,
+  // Footer with label ID
+  page.drawText(`SSCC: ${sscc} | Created: ${new Date().toLocaleString()}`, {
+    x: margin,
+    y: margin / 2,
+    size: 7,
     font: helvetica,
     color: rgb(0.5, 0.5, 0.5)
   });
   
-  // Generar PDF
-  const pdfBytes = await pdfDoc.save();
-  return pdfBytes;
+  // Generate PDF
+  return await pdfDoc.save();
 }
 
 /**
- * Genera un PDF y crea un enlace de descarga
- * @param {Object} datos - Datos para la etiqueta
- * @returns {Promise<string>} - URL del PDF generado
+ * Generate and trigger download of a GS1 label PDF
+ * @param {Object} data - Label data
+ * @returns {Promise<void>}
  */
-export async function generarYDescargarEtiqueta(datos) {
+export async function generateAndDownloadLabel(data) {
   try {
-    // Generar el PDF
-    const pdfBytes = await generarEtiquetaLogistica(datos);
+    const pdfBytes = await generateGS1LabelPDF(data);
     
-    // Crear un Blob con los bytes del PDF
+    // Create Blob and download
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    
-    // Crear una URL para el Blob
     const url = URL.createObjectURL(blob);
     
-    // Crear un enlace temporal y activar la descarga
-    const enlace = document.createElement('a');
-    enlace.href = url;
-    enlace.download = `etiqueta_gs1_${datos.gtin}_${datos.lote}.pdf`;
-    document.body.appendChild(enlace);
-    enlace.click();
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `gs1_label_${data.lotNumber}_${formatGS1Date(data.productionDate)}.pdf`;
+    document.body.appendChild(link);
+    link.click();
     
-    // Limpiar
-    document.body.removeChild(enlace);
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     
-    return url;
+    return true;
   } catch (error) {
-    console.error('Error al generar el PDF:', error);
+    console.error('Error generating PDF:', error);
     throw error;
   }
 }
