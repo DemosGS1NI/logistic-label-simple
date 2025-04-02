@@ -1,26 +1,26 @@
 // src/lib/server/pdf/barcodeGenerator.js
 import bwipjs from 'bwip-js';
-import { formatGS1Date, formatGS1Weight } from '$lib/utils/gs1Utils';
 
 /**
  * Generate a GS1-128 barcode with proper Application Identifiers
+ * Following GS1 standards for logistics labels
  * 
  * @param {Object} data - Object containing key-value pairs for GS1 data elements
  * @param {Object} options - Barcode options (scale, height, etc.)
  * @returns {Promise<Buffer>} - PNG image buffer of the barcode
  */
 export async function generateGS1Barcode(data, options = {}) {
-  // Default options
+  // Default options per GS1 standards
   const defaultOptions = {
-    bcid: 'gs1-128',       // Barcode type
+    bcid: 'gs1-128',       // Barcode type (GS1-128)
     scale: 3,              // 3 pixels per bar
-    height: 10,            // Bar height, in millimeters
+    height: 12,            // Bar height in mm (minimum 31.75mm per GS1)
     includetext: true,     // Show human-readable text
-    textxalign: 'center',  // Always center the text
+    textxalign: 'center',  // Center the text
     textyoffset: 1,        // Offset text upward for readability
-    textsize: 8,           // Text size
+    textsize: 10,          // Text size
     textfont: 'Helvetica', // Text font
-    parsefnc: true         // Parse FNC (Function) characters
+    parsefnc: true         // Parse FNC (Function) characters - required for GS1
   };
   
   // Merge provided options with defaults
@@ -81,11 +81,11 @@ export async function generateGS1Barcode(data, options = {}) {
     }
   }
   
-  // Generate the barcode
+  // Generate the barcode using bwip-js
   try {
     barcodeOptions.text = gs1DataString;
     
-    // Generate barcode using bwip-js
+    // Generate barcode
     const pngBuffer = await new Promise((resolve, reject) => {
       bwipjs.toBuffer(barcodeOptions, (err, png) => {
         if (err) reject(err);
@@ -101,7 +101,7 @@ export async function generateGS1Barcode(data, options = {}) {
 }
 
 /**
- * Format a date for GS1 (YYMMDD format)
+ * Format a date for GS1 (YYMMDD format) according to GS1 standards
  * 
  * @param {string|Date} date - Date to format
  * @returns {string} - Formatted date
@@ -141,7 +141,7 @@ export function formatWeightForGS1(weight, decimalPlaces = 0) {
   // Multiply by 10^decimalPlaces to get an integer with implied decimal point
   const scaledWeight = Math.round(numWeight * Math.pow(10, decimalPlaces));
   
-  // Pad to 6 digits
+  // Pad to 6 digits as required by GS1
   return scaledWeight.toString().padStart(6, '0');
 }
 
@@ -169,7 +169,7 @@ export async function generateGS1SectionBarcodes(labelData) {
   }, {
     scale: 3,
     height: 12,
-    textsize: 8
+    textsize: 10
   });
   
   // 2. QUANTITY, WEIGHT barcode
@@ -179,7 +179,7 @@ export async function generateGS1SectionBarcodes(labelData) {
   }, {
     scale: 3,
     height: 12,
-    textsize: 8
+    textsize: 10
   });
   
   // 3. SSCC barcode
@@ -198,25 +198,9 @@ export async function generateGS1SectionBarcodes(labelData) {
   };
 }
 
-/**
- * Generate a multi-section logistic label with barcodes
- * 
- * @param {Object} labelData - Complete label data
- * @returns {Promise<Object>} - Object containing all barcodes for the label
- */
-export async function generateLogisticLabelBarcodes(labelData) {
-  try {
-    const barcodes = await generateGS1SectionBarcodes(labelData);
-    return barcodes;
-  } catch (error) {
-    console.error('Error generating logistic label barcodes:', error);
-    throw error;
-  }
-}
-
 export default {
   generateGS1Barcode,
-  generateLogisticLabelBarcodes,
+  generateGS1SectionBarcodes,
   formatDateForGS1,
   formatWeightForGS1
 };
