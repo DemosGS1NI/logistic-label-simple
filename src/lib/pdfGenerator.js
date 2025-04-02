@@ -41,12 +41,28 @@ export async function generateGS1LabelPDF(data) {
   // Format weight for GS1 (with 1 decimal place)
   const gs1Weight = formatGS1Weight(weight, 1);
   
-  // Document structure - UPDATED PROPORTIONS
-  const headerHeight = pageHeight * 0.15; // 15% for company header
-  const midHeight = pageHeight * 0.20;    // REDUCED from 35% to 20% for text data
-  // This leaves 65% for barcodes (was 50%)
+  // Barcode generation preparation
+  const lotDateBarcode = `(10)${lotNumber}(11)${gs1Date}`;
+  const quantityBarcode = `(37)${quantity.toString().padStart(6, '0')}(3201)${gs1Weight}`;
+  const ssccBarcode = `(00)${sscc}`;
   
-  // Draw company header
+  // Barcode and HRI dimensions
+  const barcodeWidth = pageWidth - (margin * 2);
+  const barcodeHeight = 40;
+  const hriHeight = 15;
+  const barcodeSpacer = 10;
+  
+  // Vertical positioning (bottom-up, with SSCC at bottom)
+  const ssccBarcodeY = margin;
+  const ssccHRIY = ssccBarcodeY + barcodeHeight;
+  
+  const quantityBarcodeY = ssccHRIY + hriHeight + barcodeSpacer;
+  const quantityHRIY = quantityBarcodeY + barcodeHeight;
+  
+  const lotDateBarcodeY = quantityHRIY + hriHeight + barcodeSpacer;
+  const lotDateHRIY = lotDateBarcodeY + barcodeHeight;
+  
+  // Company header (top of the label)
   page.drawText(companyName, {
     x: margin,
     y: pageHeight - margin - 15,
@@ -61,18 +77,18 @@ export async function generateGS1LabelPDF(data) {
     font: helvetica
   });
   
-  // Header divider line
+  // Divider line
   page.drawLine({
-    start: { x: margin, y: pageHeight - headerHeight },
-    end: { x: pageWidth - margin, y: pageHeight - headerHeight },
-    thickness: 1
+    start: { x: margin, y: pageHeight - 60 },
+    end: { x: pageWidth - margin, y: pageHeight - 60 },
+    thickness: 1,
+    color: rgb(0.5, 0.5, 0.5)
   });
   
-  // Human readable information
-  const textY = pageHeight - headerHeight - 20; // Adjusted vertical position
-  const lineHeight = 18; // Slightly reduced to make section more compact
+  // Text information section
+  const textY = pageHeight - 80;
+  const lineHeight = 18;
   
-  // SSCC
   page.drawText('SSCC:', {
     x: margin,
     y: textY,
@@ -87,8 +103,7 @@ export async function generateGS1LabelPDF(data) {
     font: helvetica
   });
   
-  // Other data fields
-  // First column - Lot Number and Production Date
+  // Lot Number
   page.drawText('BATCH/LOT:', {
     x: margin,
     y: textY - lineHeight,
@@ -118,120 +133,75 @@ export async function generateGS1LabelPDF(data) {
     font: helvetica
   });
   
-  // Second column - Quantity and Weight
-  // Quantity
   // Quantity
   page.drawText('COUNT:', {
-    x: margin + 150, // Reduced from 180
+    x: margin + 200,
     y: textY - lineHeight,
     size: 10,
     font: helveticaBold
   });
-
+  
   page.drawText(quantity.toString(), {
-    x: margin + 210, // Reduced from 230
+    x: margin + 250,
     y: textY - lineHeight,
     size: 10,
     font: helvetica
   });
-
-  // Weight - abbreviated and repositioned
+  
+  // Weight
   page.drawText('NET WT (lb):', {
-    x: margin + 150, // Reduced from 180
+    x: margin + 200,
     y: textY - lineHeight * 2,
     size: 10,
     font: helveticaBold
   });
-
+  
   page.drawText(weight.toString(), {
-    x: margin + 230, // Reduced from 280
+    x: margin + 270,
     y: textY - lineHeight * 2,
     size: 10,
     font: helvetica
   });
   
-  // Middle section divider
+  // Divider before barcodes
   page.drawLine({
-    start: { x: margin, y: pageHeight - headerHeight - midHeight },
-    end: { x: pageWidth - margin, y: pageHeight - headerHeight - midHeight },
-    thickness: 1
+    start: { x: margin, y: lotDateBarcodeY + barcodeSpacer },
+    end: { x: pageWidth - margin, y: lotDateBarcodeY + barcodeSpacer },
+    thickness: 1,
+    color: rgb(0.5, 0.5, 0.5)
   });
   
-  // Generate barcode strings
-  const lotDateBarcode = `(10)${lotNumber}(11)${gs1Date}`;
-  const quantityBarcode = `(37)${quantity.toString().padStart(6, '0')}(3201)${gs1Weight}`;
-  const ssccBarcode = `(00)${sscc}`;
-  
-  // UPDATED: Barcode section with more space and proper spacing
-  const barcodeWidth = pageWidth - (margin * 2);
-  const barcodeHeight = 40; // Standard height for barcode
-  const barcodeSpacer = 20; // Space between barcodes
-  
-  // Calculate barcode positions from the bottom up (SSCC at bottom per GS1 standards)
-  const availableSpace = pageHeight - headerHeight - midHeight - margin;
-  const totalBarcodeSpace = (barcodeHeight * 3) + (barcodeSpacer * 2);
-  
-  // Start position for bottom barcode (SSCC)
-  const bottomBarcodeY = margin;
-  
-  // Start position for middle barcode (Quantity/Weight)
-  const middleBarcodeY = bottomBarcodeY + barcodeHeight + barcodeSpacer;
-  
-  // Start position for top barcode (Lot/Date)
-  const topBarcodeY = middleBarcodeY + barcodeHeight + barcodeSpacer;
-  
-  // Lot/Date barcode (top)
-  page.drawRectangle({
+  // TODO: Implement actual barcode generation and embedding
+  // This will require modifications to embed SVG or PNG barcodes
+  // Placeholder for barcode generation logic
+  page.drawText('Barcode Generation Pending', {
     x: margin,
-    y: topBarcodeY,
-    width: barcodeWidth,
-    height: barcodeHeight,
-    borderColor: rgb(0, 0, 0),
-    borderWidth: 1
-  });
-  
-  page.drawText(lotDateBarcode, {
-    x: margin + 10,
-    y: topBarcodeY + 15,
+    y: lotDateBarcodeY,
     size: 10,
     font: helvetica
   });
   
-  // Quantity/Weight barcode (middle)
-  page.drawRectangle({
+  // Add HRI text placeholders
+  page.drawText(lotDateBarcode, {
     x: margin,
-    y: middleBarcodeY,
-    width: barcodeWidth,
-    height: barcodeHeight,
-    borderColor: rgb(0, 0, 0),
-    borderWidth: 1
+    y: lotDateHRIY,
+    size: 8,
+    font: helvetica
   });
   
   page.drawText(quantityBarcode, {
-    x: margin + 10,
-    y: middleBarcodeY + 15,
-    size: 10,
-    font: helvetica
-  });
-  
-  // SSCC barcode (bottom barcode as per GS1 standards)
-  page.drawRectangle({
     x: margin,
-    y: bottomBarcodeY,
-    width: barcodeWidth,
-    height: barcodeHeight,
-    borderColor: rgb(0, 0, 0),
-    borderWidth: 1
+    y: quantityHRIY,
+    size: 8,
+    font: helvetica
   });
   
   page.drawText(ssccBarcode, {
-    x: margin + 10,
-    y: bottomBarcodeY + 15,
-    size: 10,
+    x: margin,
+    y: ssccHRIY,
+    size: 8,
     font: helvetica
   });
-  
-  // REMOVED footer with label ID
   
   // Generate PDF
   return await pdfDoc.save();

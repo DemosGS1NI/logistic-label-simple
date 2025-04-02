@@ -1,17 +1,11 @@
 // src/lib/barcodeGenerator.js
 import bwipjs from 'bwip-js';
 
-/**
- * Generate a GS1-128 barcode image as a data URL
- * @param {string} data - Data to encode in GS1 format (with AIs in parentheses)
- * @param {Object} options - Optional barcode options
- * @returns {Promise<string>} - Data URL of the barcode image
- */
-export async function generateGS1BarcodeDataURL(data, options = {}) {
+export async function generateGS1BarcodePNG(data, options = {}) {
   const defaultOptions = {
     bcid: 'gs1-128',
     scale: 3,
-    height: 15,
+    height: 12,
     includetext: true,
     textxalign: 'center',
     textsize: 10
@@ -21,18 +15,17 @@ export async function generateGS1BarcodeDataURL(data, options = {}) {
   
   return new Promise((resolve, reject) => {
     try {
-      // Use bwipjs's browser-friendly method
-      bwipjs.toCanvas('canvas', barcodeOptions, function(err, canvas) {
+      bwipjs.toBuffer(barcodeOptions, (err, png) => {
         if (err) {
+          console.error('BWIP-JS Error:', err);
           reject(err);
         } else {
-          // Convert canvas to data URL
-          const dataURL = canvas.toDataURL('image/png');
-          resolve(dataURL);
+          console.log('Barcode PNG generated successfully');
+          resolve(png);
         }
       });
     } catch (error) {
-      console.error('Error generating barcode:', error);
+      console.error('Barcode generation catch error:', error);
       reject(error);
     }
   });
