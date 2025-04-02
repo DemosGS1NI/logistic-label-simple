@@ -41,9 +41,10 @@ export async function generateGS1LabelPDF(data) {
   // Format weight for GS1 (with 1 decimal place)
   const gs1Weight = formatGS1Weight(weight, 1);
   
-  // Document structure
-  const headerHeight = pageHeight * 0.15;
-  const midHeight = pageHeight * 0.35;
+  // Document structure - UPDATED PROPORTIONS
+  const headerHeight = pageHeight * 0.15; // 15% for company header
+  const midHeight = pageHeight * 0.20;    // REDUCED from 35% to 20% for text data
+  // This leaves 65% for barcodes (was 50%)
   
   // Draw company header
   page.drawText(companyName, {
@@ -68,8 +69,8 @@ export async function generateGS1LabelPDF(data) {
   });
   
   // Human readable information
-  const textY = pageHeight - headerHeight - 25;
-  const lineHeight = 20;
+  const textY = pageHeight - headerHeight - 20; // Adjusted vertical position
+  const lineHeight = 18; // Slightly reduced to make section more compact
   
   // SSCC
   page.drawText('SSCC:', {
@@ -87,7 +88,7 @@ export async function generateGS1LabelPDF(data) {
   });
   
   // Other data fields
-  // Lot Number
+  // First column - Lot Number and Production Date
   page.drawText('BATCH/LOT:', {
     x: margin,
     y: textY - lineHeight,
@@ -117,31 +118,33 @@ export async function generateGS1LabelPDF(data) {
     font: helvetica
   });
   
+  // Second column - Quantity and Weight
+  // Quantity
   // Quantity
   page.drawText('COUNT:', {
-    x: margin + 180,
+    x: margin + 150, // Reduced from 180
     y: textY - lineHeight,
     size: 10,
     font: helveticaBold
   });
-  
+
   page.drawText(quantity.toString(), {
-    x: margin + 230,
+    x: margin + 210, // Reduced from 230
     y: textY - lineHeight,
     size: 10,
     font: helvetica
   });
-  
-  // Weight
-  page.drawText('NET WEIGHT (lb):', {
-    x: margin + 180,
+
+  // Weight - abbreviated and repositioned
+  page.drawText('NET WT (lb):', {
+    x: margin + 150, // Reduced from 180
     y: textY - lineHeight * 2,
     size: 10,
     font: helveticaBold
   });
-  
+
   page.drawText(weight.toString(), {
-    x: margin + 280,
+    x: margin + 230, // Reduced from 280
     y: textY - lineHeight * 2,
     size: 10,
     font: helvetica
@@ -155,79 +158,80 @@ export async function generateGS1LabelPDF(data) {
   });
   
   // Generate barcode strings
-  const ssccBarcode = `(00)${sscc}`;
-  const contentBarcode = `(10)${lotNumber}(11)${gs1Date}`;
+  const lotDateBarcode = `(10)${lotNumber}(11)${gs1Date}`;
   const quantityBarcode = `(37)${quantity.toString().padStart(6, '0')}(3201)${gs1Weight}`;
+  const ssccBarcode = `(00)${sscc}`;
   
-  // Barcode Y positions
+  // UPDATED: Barcode section with more space and proper spacing
   const barcodeWidth = pageWidth - (margin * 2);
-  const barcodeY1 = pageHeight - headerHeight - midHeight - 60;
-  const barcodeY2 = barcodeY1 - 80;
-  const barcodeY3 = barcodeY2 - 80;
+  const barcodeHeight = 40; // Standard height for barcode
+  const barcodeSpacer = 20; // Space between barcodes
   
-  // Add placeholder rectangles for barcodes
-  // In a real implementation, we would embed the SVG or PNG barcodes here
-  // For now, we'll just draw placeholders with the barcode text
+  // Calculate barcode positions from the bottom up (SSCC at bottom per GS1 standards)
+  const availableSpace = pageHeight - headerHeight - midHeight - margin;
+  const totalBarcodeSpace = (barcodeHeight * 3) + (barcodeSpacer * 2);
   
-  // SSCC barcode (bottom barcode as per GS1 standards)
+  // Start position for bottom barcode (SSCC)
+  const bottomBarcodeY = margin;
+  
+  // Start position for middle barcode (Quantity/Weight)
+  const middleBarcodeY = bottomBarcodeY + barcodeHeight + barcodeSpacer;
+  
+  // Start position for top barcode (Lot/Date)
+  const topBarcodeY = middleBarcodeY + barcodeHeight + barcodeSpacer;
+  
+  // Lot/Date barcode (top)
   page.drawRectangle({
     x: margin,
-    y: barcodeY3 - 30,
+    y: topBarcodeY,
     width: barcodeWidth,
-    height: 40,
+    height: barcodeHeight,
     borderColor: rgb(0, 0, 0),
     borderWidth: 1
   });
   
-  page.drawText(ssccBarcode, {
+  page.drawText(lotDateBarcode, {
     x: margin + 10,
-    y: barcodeY3 - 15,
+    y: topBarcodeY + 15,
     size: 10,
     font: helvetica
   });
   
-  // Content barcode
+  // Quantity/Weight barcode (middle)
   page.drawRectangle({
     x: margin,
-    y: barcodeY1 - 30,
+    y: middleBarcodeY,
     width: barcodeWidth,
-    height: 40,
-    borderColor: rgb(0, 0, 0),
-    borderWidth: 1
-  });
-  
-  page.drawText(contentBarcode, {
-    x: margin + 10,
-    y: barcodeY1 - 15,
-    size: 10,
-    font: helvetica
-  });
-  
-  // Quantity/Weight barcode
-  page.drawRectangle({
-    x: margin,
-    y: barcodeY2 - 30,
-    width: barcodeWidth,
-    height: 40,
+    height: barcodeHeight,
     borderColor: rgb(0, 0, 0),
     borderWidth: 1
   });
   
   page.drawText(quantityBarcode, {
     x: margin + 10,
-    y: barcodeY2 - 15,
+    y: middleBarcodeY + 15,
     size: 10,
     font: helvetica
   });
   
-  // Footer with label ID
-  page.drawText(`SSCC: ${sscc} | Created: ${new Date().toLocaleString()}`, {
+  // SSCC barcode (bottom barcode as per GS1 standards)
+  page.drawRectangle({
     x: margin,
-    y: margin / 2,
-    size: 7,
-    font: helvetica,
-    color: rgb(0.5, 0.5, 0.5)
+    y: bottomBarcodeY,
+    width: barcodeWidth,
+    height: barcodeHeight,
+    borderColor: rgb(0, 0, 0),
+    borderWidth: 1
   });
+  
+  page.drawText(ssccBarcode, {
+    x: margin + 10,
+    y: bottomBarcodeY + 15,
+    size: 10,
+    font: helvetica
+  });
+  
+  // REMOVED footer with label ID
   
   // Generate PDF
   return await pdfDoc.save();
