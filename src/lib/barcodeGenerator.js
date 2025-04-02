@@ -2,16 +2,16 @@
 import bwipjs from 'bwip-js';
 
 /**
- * Generate a GS1-128 barcode as SVG
+ * Generate a GS1-128 barcode image as a data URL
  * @param {string} data - Data to encode in GS1 format (with AIs in parentheses)
  * @param {Object} options - Optional barcode options
- * @returns {Promise<string>} - SVG string
+ * @returns {Promise<string>} - Data URL of the barcode image
  */
-export async function generateGS1BarcodeAsSVG(data, options = {}) {
+export async function generateGS1BarcodeDataURL(data, options = {}) {
   const defaultOptions = {
     bcid: 'gs1-128',
-    scale: 2,
-    height: 10,
+    scale: 3,
+    height: 15,
     includetext: true,
     textxalign: 'center',
     textsize: 10
@@ -21,37 +21,19 @@ export async function generateGS1BarcodeAsSVG(data, options = {}) {
   
   return new Promise((resolve, reject) => {
     try {
-      // Use BWIP-JS to generate SVG
-      let svg = bwipjs.toSVG(barcodeOptions);
-      resolve(svg);
+      // Use bwipjs's browser-friendly method
+      bwipjs.toCanvas('canvas', barcodeOptions, function(err, canvas) {
+        if (err) {
+          reject(err);
+        } else {
+          // Convert canvas to data URL
+          const dataURL = canvas.toDataURL('image/png');
+          resolve(dataURL);
+        }
+      });
     } catch (error) {
+      console.error('Error generating barcode:', error);
       reject(error);
     }
-  });
-}
-
-/**
- * Generate a GS1-128 barcode as PNG buffer
- * @param {string} data - Data to encode in GS1 format (with AIs in parentheses)
- * @param {Object} options - Optional barcode options
- * @returns {Promise<Buffer>} - PNG buffer
- */
-export async function generateGS1BarcodePNG(data, options = {}) {
-  const defaultOptions = {
-    bcid: 'gs1-128',
-    scale: 3,
-    height: 12,
-    includetext: true,
-    textxalign: 'center',
-    textsize: 10
-  };
-  
-  const barcodeOptions = { ...defaultOptions, ...options, text: data };
-  
-  return new Promise((resolve, reject) => {
-    bwipjs.toBuffer(barcodeOptions, (err, png) => {
-      if (err) reject(err);
-      else resolve(png);
-    });
   });
 }
